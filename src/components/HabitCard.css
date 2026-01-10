@@ -1,0 +1,119 @@
+.habit-card {
+    display: flex;
+    align-items: center;
+    background: var(--color-bg-card);
+    backdrop-filter: var(--backdrop-blur);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--spacing-md);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+}
+
+.habit-card:hover {
+    background: var(--color-bg-card-hover);
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: var(--shadow-md);
+}
+
+.habit-card.completed {
+    background: rgba(16, 185, 129, 0.1);
+    /* Subtle green tint */
+    border-color: rgba(16, 185, 129, 0.2);
+}
+
+.habit-icon-wrapper {
+    width: 48px;
+    height: 48px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    margin-right: var(--spacing-md);
+}
+
+.habit-info {
+    flex: 1;
+}
+
+.habit-name {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.habit-streak {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+}
+
+.text-orange-500 {
+    color: #f97316;
+}
+
+.text-gray-500 {
+    color: var(--color-text-muted);
+}
+
+.habit-checkbox {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.habit-checkbox:hover {
+    border-color: var(--color-text-secondary);
+}
+
+.habit-checkbox.checked {
+    background: var(--color-success);
+    border-color: var(--color-success);
+    transform: scale(1.1);
+}
+
+.habit-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.habit-delete-btn {
+    background: transparent;
+    border: none;
+    color: var(--color-text-muted);
+    padding: 8px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    opacity: 0;
+    /* Hidden by default until hover */
+}
+
+.habit-card:hover .habit-delete-btn {
+    opacity: 1;
+}
+
+.habit-delete-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    /* Red color */
+    transform: scale(1.1);
+}
