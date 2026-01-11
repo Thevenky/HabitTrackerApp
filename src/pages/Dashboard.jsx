@@ -5,40 +5,50 @@ import AddHabitModal from '../components/AddHabitModal';
 import CalendarHeatmap from '../components/CalendarHeatmap';
 import { triggerConfetti } from '../components/Confetti';
 import { playCompletionSound, playStreakSound } from '../utils/sound';
-import { Trophy } from 'lucide-react';
+import { supabase } from '../supabase';
 import './Dashboard.css';
-
-const INITIAL_HABITS = [
-    { id: 1, name: 'Morning Stretch', icon: '🧘', completedDates: [] },
-    { id: 2, name: 'Drink Water 2L', icon: '💧', completedDates: [] },
-    { id: 3, name: 'Read 20 mins', icon: '📚', completedDates: [] },
-    { id: 4, name: 'Code Session', icon: '💻', completedDates: [] },
-];
 
 const getToday = () => new Date().toISOString().split('T')[0];
 
 const Dashboard = ({ user, onLogout }) => {
-    const [habits, setHabits] = useState(() => {
-        const saved = localStorage.getItem('levelup-habits');
-        let parsed = saved ? JSON.parse(saved) : INITIAL_HABITS;
-
-        // Migration: Convert legacy 'completed' bool/streak to completedDates if needed
-        // This is a simple migration that assumes current streak is contiguous ending today if completed=true
-        return parsed.map(h => {
-            if (!Array.isArray(h.completedDates)) {
-                return { ...h, completedDates: [], streak: 0 }; // Reset if schema invalid to be safe
-            }
-            return h;
-        });
-    });
-
-    const [userLevel, setUserLevel] = useState(5);
-    const [userXP, setUserXP] = useState(350);
+    const [habits, setHabits] = useState([]);
+    const [userLevel, setUserLevel] = useState(user.level || 1);
+    const [userXP, setUserXP] = useState(user.xp || 0);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
+    // Initial Fetch
     useEffect(() => {
-        localStorage.setItem('levelup-habits', JSON.stringify(habits));
-    }, [habits]);
+        const fetchHabits = async () => {
+            const { data, error } = await supabase
+                .from('habits')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('id', { ascending: true });
+
+            if (!error && data) {
+                setHabits(data.map(h => ({
+                    ...h,
+                    // Supabase arrays come back as arrays, but ensure it's not null
+                    completedDates: h.completed_dates || []
+                })));
+            }
+        };
+
+        const fetchProfile = async () => {
+            const { data } = await supabase
+                .from('profiles')
+                .select('level, xp')
+                .eq('id', user.id)
+                .single();
+            if (data) {
+                setUserLevel(data.level);
+                setUserXP(data.xp);
+            }
+        };
+
+        fetchHabits();
+        fetchProfile();
+    }, [user.id]);
 
     const today = getToday();
 
@@ -59,50 +69,74 @@ const Dashboard = ({ user, onLogout }) => {
         }
     }, [progress, totalCount]);
 
-    const toggleHabit = (id) => {
-        setHabits(prev => prev.map(h => {
-            if (h.id === id) {
-                const isCompleted = h.completedDates.includes(today);
-                let newDates;
+    const updateProfileStats = async (xpChange) => {
+        const newXP = userXP + xpChange;
+        const newLevel = Math.floor(newXP / 100) + 1;
 
-                if (isCompleted) {
-                    // Undo completion
-                    newDates = h.completedDates.filter(d => d !== today);
-                    setUserXP(x => x - 10);
-                } else {
-                    // Complete
-                    newDates = [...h.completedDates, today];
-                    setUserXP(x => x + 10);
+        setUserXP(newXP);
+        setUserLevel(newLevel);
 
-                    // Sound Effects
-                    playCompletionSound();
-
-                    // Check streak milestones
-                    const newStreak = calculateCurrentStreak(newDates);
-                    if ([3, 7, 30, 365].includes(newStreak)) {
-                        setTimeout(() => playStreakSound(newStreak), 300);
-                    }
-                }
-
-                return { ...h, completedDates: newDates };
-            }
-            return h;
-        }));
+        await supabase
+            .from('profiles')
+            .update({ xp: newXP, level: newLevel })
+            .eq('id', user.id);
     };
 
-    const handleAddHabit = ({ name, icon }) => {
+    const toggleHabit = async (id) => {
+        const habitToToggle = habits.find(h => h.id === id);
+        if (!habitToToggle) return;
+
+        const isCompleted = habitToToggle.completedDates.includes(today);
+        let newDates;
+
+        if (isCompleted) {
+            newDates = habitToToggle.completedDates.filter(d => d !== today);
+            updateProfileStats(-10);
+        } else {
+            newDates = [...habitToToggle.completedDates, today];
+            updateProfileStats(10);
+            playCompletionSound();
+
+            const newStreak = calculateCurrentStreak(newDates);
+            if ([3, 7, 30, 365].includes(newStreak)) {
+                setTimeout(() => playStreakSound(newStreak), 300);
+            }
+        }
+
+        // Optimistic UI Update
+        setHabits(prev => prev.map(h => h.id === id ? { ...h, completedDates: newDates } : h));
+
+        // DB Update
+        await supabase
+            .from('habits')
+            .update({ completed_dates: newDates })
+            .eq('id', id);
+    };
+
+    const handleAddHabit = async ({ name, icon }) => {
         const newHabit = {
-            id: Date.now(),
+            user_id: user.id,
             name,
             icon,
-            completedDates: []
+            completed_dates: []
         };
-        setHabits(prev => [...prev, newHabit]);
+
+        // DB Insert
+        const { data, error } = await supabase
+            .from('habits')
+            .insert([newHabit])
+            .select()
+            .single();
+
+        if (data && !error) {
+            setHabits(prev => [...prev, { ...data, completedDates: [] }]);
+        }
     };
 
-    const handleDeleteHabit = (id) => {
+    const handleDeleteHabit = async (id) => {
         if (window.confirm("Are you sure you want to delete this quest?")) {
             setHabits(prev => prev.filter(h => h.id !== id));
+            await supabase.from('habits').delete().eq('id', id);
         }
     };
 
@@ -110,7 +144,9 @@ const Dashboard = ({ user, onLogout }) => {
         <div className="dashboard">
             <header className="dashboard-header">
                 <div className="user-profile">
-                    <div className="avatar">{user.name.charAt(0).toUpperCase()}</div>
+                    <div className="avatar" onClick={() => setIsModalOpen('profile')} style={{ cursor: 'pointer' }}>
+                        {user.name ? user.name.charAt(0).toUpperCase() : '?'}
+                    </div>
                     <div className="user-info">
                         <h1>{user.name}</h1>
                         <span className="level-badge">Level {userLevel}</span>
@@ -147,7 +183,7 @@ const Dashboard = ({ user, onLogout }) => {
 
                 <button
                     className="btn add-habit-btn"
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={() => setIsModalOpen('addHabit')}
                 >
                     + New Quest
                 </button>
@@ -156,10 +192,42 @@ const Dashboard = ({ user, onLogout }) => {
             </main>
 
             <AddHabitModal
-                isOpen={isModalOpen}
+                isOpen={isModalOpen === 'addHabit'}
                 onClose={() => setIsModalOpen(false)}
                 onAdd={handleAddHabit}
             />
+
+            {isModalOpen === 'profile' && (
+                <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+                    <div className="modal-content profile-modal" onClick={e => e.stopPropagation()}>
+                        <button className="close-btn" onClick={() => setIsModalOpen(false)}>×</button>
+                        <h2>Player Profile</h2>
+
+                        <div className="profile-details">
+                            <div className="detail-group">
+                                <label>Name</label>
+                                <div className="detail-value">{user.name}</div>
+                            </div>
+                            <div className="detail-group">
+                                <label>Email</label>
+                                <div className="detail-value">{user.email}</div>
+                            </div>
+                            <div className="detail-group">
+                                <label>Password</label>
+                                <div className="detail-value password-value">
+                                    Protected
+                                </div>
+                            </div>
+                            <div className="detail-group">
+                                <label>Joined On</label>
+                                <div className="detail-value">
+                                    {user.created_at ? new Date(user.created_at).toLocaleDateString() : (user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

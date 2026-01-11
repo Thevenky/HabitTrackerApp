@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Target, ArrowRight, Sparkles } from 'lucide-react';
+import { supabase } from '../supabase';
 import './Login.css';
 
 const Login = ({ onLogin }) => {
@@ -10,45 +11,74 @@ const Login = ({ onLogin }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         if (!email || !password || (!isLoginMode && !name)) return;
 
         setIsLoading(true);
 
-        // Simulate API delay
-        setTimeout(() => {
-            const users = JSON.parse(localStorage.getItem('levelup-users') || '[]');
-            const existingUser = users.find(u => u.email === email);
-
+        try {
             if (isLoginMode) {
                 // Login Logic
-                if (!existingUser) {
-                    setError('User not found. Please create an account.');
-                    setIsLoading(false);
-                    return;
+                const { data, error: authError } = await supabase.auth.signInWithPassword({
+                    email,
+                    password,
+                });
+
+                if (authError) throw authError;
+
+                // Fetch full profile
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', data.user.id)
+                    .single();
+
+                if (profileError) {
+                    // Fallback if profile doesn't exist yet but auth does
+                    onLogin({ ...data.user, name: name || email.split('@')[0], email });
+                } else {
+                    onLogin(profile);
                 }
-                if (existingUser.password !== password) {
-                    setError('Invalid credentials.');
-                    setIsLoading(false);
-                    return;
-                }
-                onLogin(existingUser);
+
             } else {
                 // Sign Up Logic
-                if (existingUser) {
-                    setError('User already exists. Please login.');
-                    setIsLoading(false);
-                    return;
-                }
-                const newUser = { email, password, name };
-                localStorage.setItem('levelup-users', JSON.stringify([...users, newUser]));
-                onLogin(newUser);
-            }
+                const { data, error: authError } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            name: name,
+                        }
+                    }
+                });
 
+                if (authError) throw authError;
+
+                if (data.user) {
+                    // Profile is created automatically by database trigger
+                    // We can log the user in directly with the data we have
+                    const newUser = {
+                        id: data.user.id,
+                        email,
+                        name,
+                        // We use current time for immediate UI feedback, 
+                        // though DB will generate its own timestamp
+                        created_at: new Date().toISOString()
+                    };
+
+                    onLogin(newUser);
+                }
+            }
+        } catch (err) {
+            console.error(err);
+            setError(err.message === 'Invalid login credentials'
+                ? 'Invalid email or password.'
+                : err.message);
+        } finally {
             setIsLoading(false);
-        }, 1000);
+        }
     };
 
     const toggleMode = () => {
@@ -122,7 +152,7 @@ const Login = ({ onLogin }) => {
                         disabled={isLoading}
                     >
                         {isLoading ? (
-                            <span className="loading-text"><Sparkles size={16} className="spin" /> Processing...</span>
+                            <span className="loading-text"><Sparkles size={16} className="spin" /> Connecting...</span>
                         ) : (
                             <>
                                 {isLoginMode ? 'Login' : 'Create Account'} <ArrowRight size={18} />
@@ -134,7 +164,7 @@ const Login = ({ onLogin }) => {
                 <div className="login-footer">
                     <p>
                         {isLoginMode ? "First time here? " : "Already have an account? "}
-                        <button className="link-btn" onClick={toggleMode}>
+                        <button className="link-btn" onClick={toggleMode} type="button">
                             {isLoginMode ? 'Create Account' : 'Login'}
                         </button>
                     </p>
