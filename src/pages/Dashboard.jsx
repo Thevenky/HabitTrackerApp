@@ -18,6 +18,10 @@ const Dashboard = ({ user, onLogout }) => {
 
     // Initial Fetch
     useEffect(() => {
+        if ('Notification' in window) {
+            Notification.requestPermission();
+        }
+
         const fetchHabits = async () => {
             const { data, error } = await supabase
                 .from('habits')
@@ -29,7 +33,8 @@ const Dashboard = ({ user, onLogout }) => {
                 setHabits(data.map(h => ({
                     ...h,
                     // Supabase arrays come back as arrays, but ensure it's not null
-                    completedDates: h.completed_dates || []
+                    completedDates: h.completed_dates || [],
+                    reminderTime: h.reminder_time // Map new column
                 })));
             }
         };
@@ -49,6 +54,28 @@ const Dashboard = ({ user, onLogout }) => {
         fetchHabits();
         fetchProfile();
     }, [user.id]);
+
+    // Reminder Check Interval
+    useEffect(() => {
+        const checkReminders = () => {
+            const now = new Date();
+            const currentTime = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+
+            habits.forEach(habit => {
+                if (habit.reminderTime === currentTime && !habit.completedDates.includes(getToday())) {
+                    if (Notification.permission === 'granted') {
+                        new Notification(`Time for ${habit.name}!`, {
+                            body: `Take a moment to ${habit.name} ${habit.icon}`,
+                            icon: '/pwa-192x192.png'
+                        });
+                    }
+                }
+            });
+        };
+
+        const interval = setInterval(checkReminders, 30000);
+        return () => clearInterval(interval);
+    }, [habits]);
 
     const today = getToday();
 
@@ -113,11 +140,12 @@ const Dashboard = ({ user, onLogout }) => {
             .eq('id', id);
     };
 
-    const handleAddHabit = async ({ name, icon }) => {
+    const handleAddHabit = async ({ name, icon, reminderTime }) => {
         const newHabit = {
             user_id: user.id,
             name,
             icon,
+            reminder_time: reminderTime,
             completed_dates: []
         };
 
@@ -129,7 +157,11 @@ const Dashboard = ({ user, onLogout }) => {
             .single();
 
         if (data && !error) {
-            setHabits(prev => [...prev, { ...data, completedDates: [] }]);
+            setHabits(prev => [...prev, {
+                ...data,
+                completedDates: [],
+                reminderTime: data.reminder_time // Map return value
+            }]);
         }
     };
 

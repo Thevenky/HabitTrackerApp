@@ -1,5 +1,4 @@
-import React from 'react';
-import { Check, Flame, Trash2 } from 'lucide-react';
+import { Check, Flame, Trash2, Clock } from 'lucide-react';
 import './HabitCard.css';
 
 const HabitCard = ({ habit, onToggle, onDelete }) => {
@@ -11,9 +10,17 @@ const HabitCard = ({ habit, onToggle, onDelete }) => {
 
             <div className="habit-info">
                 <h3 className="habit-name">{habit.name}</h3>
-                <div className="habit-streak">
-                    <Flame size={14} className={habit.streak > 0 ? 'text-orange-500' : 'text-gray-500'} />
-                    <span>{habit.streak} day streak</span>
+                <div className="habit-details">
+                    <div className="habit-streak">
+                        <Flame size={14} className={habit.streak > 0 ? 'text-orange-500' : 'text-gray-500'} />
+                        <span>{habit.streak} streak</span>
+                    </div>
+                    {habit.reminderTime && (
+                        <div className="habit-reminder">
+                            <Clock size={12} />
+                            <span>{habit.reminderTime}</span>
+                        </div>
+                    )}
                 </div>
             </div>
 

@@ -67,7 +67,8 @@
     letter-spacing: 0.5px;
 }
 
-input[type="text"] {
+input[type="text"],
+input[type="time"] {
     width: 100%;
     padding: 12px;
     background: rgba(0, 0, 0, 0.3);
@@ -77,6 +78,18 @@ input[type="text"] {
     font-size: 1rem;
     outline: none;
     transition: border-color 0.2s;
+    font-family: inherit;
+}
+
+input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+input[type="time"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
 }
 
 input[type="text"]:focus {

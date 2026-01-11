@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { X, Sparkles } from 'lucide-react';
 import './AddHabitModal.css';
 
-const EMOJI_PRESETS = ['💧', '🏃', '📚', '🧘', '🍎', '💻', '🎸', '🎨', '💤'];
+const EMOJI_PRESETS = ['💧', '🏃', '📚', '🧘', '🍎', '💻', '🎸', '🎨', '💤', '💰', '📈'];
 
 const AddHabitModal = ({ isOpen, onClose, onAdd }) => {
     const [name, setName] = useState('');
     const [selectedIcon, setSelectedIcon] = useState(EMOJI_PRESETS[0]);
+    const [reminderTime, setReminderTime] = useState('');
 
     if (!isOpen) return null;
 
@@ -17,10 +18,12 @@ const AddHabitModal = ({ isOpen, onClose, onAdd }) => {
         onAdd({
             name,
             icon: selectedIcon,
+            reminderTime
         });
 
         // Reset and close
         setName('');
+        setReminderTime('');
         setSelectedIcon(EMOJI_PRESETS[0]);
         onClose();
     };
@@ -42,6 +45,16 @@ const AddHabitModal = ({ isOpen, onClose, onAdd }) => {
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             autoFocus
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label>Daily Reminder (Optional)</label>
+                        <input
+                            type="time"
+                            value={reminderTime}
+                            onChange={(e) => setReminderTime(e.target.value)}
+                            className="time-input"
                         />
                     </div>
 
